@@ -6,13 +6,37 @@ export function initSorting(columns) {
         let order = null;
 
         if (action && action.name === 'sort') {
-            // @todo: #3.1 — запомнить выбранный режим сортировки
+            // Переключаем состояние текущей кнопки сортировки по карте sortMap
+            action.dataset.value = sortMap[action.dataset.value];
 
-            // @todo: #3.2 — сбросить сортировки остальных колонок
+            // Сохраняем поле и направление из данных кнопки
+            field = action.dataset.field;
+            order = action.dataset.value;
+
+            // Сбрасываем сортировку для остальных кнопок
+            columns.forEach(column => {
+                if (column.dataset.field !== action.dataset.field) {
+                    column.dataset.value = 'none';
+                }
+            });
         } else {
-            // @todo: #3.3 — получить выбранный режим сортировки
+            // При отсутствии действия сортировки ищем активную колонку
+            const activeColumn = columns.find(col => col.dataset.value !== 'none');
+            if (activeColumn) {
+                field = activeColumn.dataset.field;
+                order = activeColumn.dataset.value;
+            }
         }
 
+        // @todo: #3.3 — применение выбранного режима сортировки при перерисовках
+        columns.forEach(column => {
+            if (column.dataset.value !== 'none') {
+                field = column.dataset.field;
+                order = column.dataset.value;
+            }
+        });
+
+        // Выполняем сортировку с выбранным полем и направлением
         return sortCollection(data, field, order);
     }
 }
