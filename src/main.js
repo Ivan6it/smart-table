@@ -1,5 +1,5 @@
-import './fonts/ys-display/fonts.css'
-import './style.css'
+import './fonts/ys-display/fonts.css';
+import './style.css';
 import { initSorting } from './components/sorting.js';
 import { initSearching } from './components/searching.js';
 import { initPagination } from './components/pagination.js';
@@ -69,19 +69,70 @@ function collectState() {
     };
 }
 
-// Обработчик событий
+// click-обработчик
 sampleTable.container.addEventListener('click', (e) => {
     const button = e.target.closest('button');
     if (!button) return;
 
     const name = button.getAttribute('name');
-    if (!['first', 'prev', 'next', 'last'].includes(name)) return;
+    const type = button.getAttribute('type');
+
+    if (type === 'reset') {
+        return;
+    }
 
     e.preventDefault();
-    render({ name });
+
+    // Кнопка для сброса фильтра (отдельного)
+    if (name === 'clear') {
+        const field = button.dataset.field;
+        const container = button.closest('div');
+        if (container) {
+            const input = container.querySelector('input, select');
+            if (input) {
+                input.value = '';
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+        render();
+        return;
+    }
+
+    if (['first', 'prev', 'next', 'last'].includes(name)) {
+        render({ name });
+        return;
+    }
+
+    if (name === 'sort') {
+        const currentValue = button.dataset.value;
+        const newValue = { 'none': 'up', 'up': 'down', 'down': 'none' }[currentValue];
+        button.dataset.value = newValue;
+
+        sampleTable.container
+            .querySelectorAll('button[name="sort"]')
+            .forEach(btn => {
+                if (btn !== button) btn.dataset.value = 'none';
+            });
+
+        render();
+        return;
+    }
 });
 
-// Обработчик для кнопок пагинации
+// Кнопка сброса всех фильтров
+sampleTable.container.addEventListener('reset', () => {
+
+    setTimeout(() => {
+        sampleTable.container
+            .querySelectorAll('input, select')
+            .forEach(input => {
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        render();
+    }, 0);
+});
+
+// Кнопки пагинации
 sampleTable.container.addEventListener('change', (e) => {
     const input = e.target.closest('input[name="page"]');
     if (input) {
@@ -90,30 +141,7 @@ sampleTable.container.addEventListener('change', (e) => {
     }
 });
 
-// Обработчик сортировки
-sampleTable.container.addEventListener('click', (e) => {
-    const sortButton = e.target.closest('button[name="sort"]');
-    if (!sortButton) return;
-
-    e.preventDefault();
-
-    const currentValue = sortButton.dataset.value;
-    const newValue = { 'none': 'up', 'up': 'down', 'down': 'none' }[currentValue];
-
-    sortButton.dataset.value = newValue;
-
-    sampleTable.container
-        .querySelectorAll('button[name="sort"]')
-        .forEach(btn => {
-            if (btn !== sortButton) {
-                btn.dataset.value = 'none';
-            }
-        });
-
-    render();
-});
-
-// Основная функция рендеринга
+// Рендеринг
 async function render(action) {
     const state = collectState();
     const rowsPerPage = state.rowsPerPage;
@@ -145,51 +173,52 @@ async function render(action) {
     }
 
     const query = {
-    ...applySearching({}, state, action),
-    ...applyFiltering({}, state, action),
-    ...applySorting({}, state, action),
-    limit: rowsPerPage,
-    page: targetPage
-};
+        ...applySearching({}, state, action),
+        ...applyFiltering({}, state, action),
+        ...applySorting({}, state, action),
+        limit: rowsPerPage,
+        page: targetPage
+    };
 
     try {
-    const { total, items } = await API.getRecords(query);
-    currentTotal = total;
-    const pageCount = Math.ceil(total / rowsPerPage);
-    const finalPage = Math.min(targetPage, pageCount || 1);
+        const { total, items } = await API.getRecords(query);
+        currentTotal = total;
 
-    // Фикс, когда страница недоступна
-    if (targetPage > pageCount && pageCount > 0) {
-        return render({ name: 'goto', page: pageCount });
-    }
+        const pageCount = Math.ceil(total / rowsPerPage);
+        const finalPage = Math.min(targetPage, pageCount || 1);
 
-    updatePaginationUI({ page: finalPage, rowsPerPage, total });
-
-    setTimeout(() => {
-        const pageInputs = sampleTable.container.querySelectorAll('input[name="page"]');
-        pageInputs.forEach(input => {
-            input.checked = Number(input.value) === finalPage;
-        });
-    }, 0);
-
-    sampleTable.render(items);
-
-// Не теряем фокуса с пагинации
-if (action && ['first', 'prev', 'next', 'last', 'goto'].includes(action.name)) {
-    setTimeout(() => {
-        const paginationContainer = sampleTable.pagination.elements.pages.closest('.pagination-container');
-        if (paginationContainer) {
-            paginationContainer.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center'
-            });
+        // Фикс, когда страница недоступна
+        if (targetPage > pageCount && pageCount > 0) {
+            return render({ name: 'goto', page: pageCount });
         }
-    }, 100);
-}
 
-} catch (err) {
-    console.error('Ошибка при загрузке данных:', err);
-}
+        updatePaginationUI({ page: finalPage, rowsPerPage, total });
+
+        setTimeout(() => {
+            const pageInputs = sampleTable.container.querySelectorAll('input[name="page"]');
+            pageInputs.forEach(input => {
+                input.checked = Number(input.value) === finalPage;
+            });
+        }, 0);
+
+        sampleTable.render(items);
+
+        // Не теряем фокус при пагинации
+        if (action && ['first', 'prev', 'next', 'last', 'goto'].includes(action.name)) {
+            setTimeout(() => {
+                const paginationContainer = sampleTable.pagination.elements.pages.closest('.pagination-container');
+                if (paginationContainer) {
+                    paginationContainer.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+                }
+            }, 100);
+        }
+
+    } catch (err) {
+        console.error('Ошибка при загрузке данных:', err);
+    }
 }
 
 // Инициализация
